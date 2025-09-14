@@ -37,6 +37,22 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize database with legal domains and sync law texts
+  try {
+    const { retsinformationService } = await import("./services/retsinformation");
+    
+    console.log("Initializing legal domains...");
+    await retsinformationService.syncLegalDomains();
+    
+    console.log("Starting law texts sync (this may take a while)...");
+    // Start the sync in the background to avoid blocking server startup
+    retsinformationService.syncLawTexts(false).catch(error => {
+      console.error("Law texts sync failed:", error);
+    });
+  } catch (error) {
+    console.error("Error initializing legal data:", error);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
