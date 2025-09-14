@@ -1,4 +1,4 @@
-import { 
+import {
   users, legalDomains, lawTexts, textEmbeddings, chatSessions, chatMessages,
   type User, type InsertUser, type LegalDomain, type InsertLegalDomain,
   type LawText, type InsertLawText, type LawTextWithDomain,
@@ -62,10 +62,13 @@ export class DatabaseStorage implements IStorage {
   // Legal Domains
   async getLegalDomains(): Promise<LegalDomain[]> {
     try {
-      return await db.select().from(legalDomains).where(eq(legalDomains.isActive, true));
+      const domains = await db.select().from(legalDomains).orderBy(legalDomains.name);
+      console.log("Legal domains fetched successfully:", domains.length);
+      return domains;
     } catch (error) {
       console.error("Database error in getLegalDomains:", error);
-      throw new Error("Failed to fetch legal domains from database");
+      console.error("Error details:", error instanceof Error ? error.message : 'Unknown error');
+      throw new Error(`Failed to fetch legal domains from database: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -156,12 +159,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async searchSimilarTexts(
-    queryEmbedding: number[], 
-    domainIds?: string[], 
+    queryEmbedding: number[],
+    domainIds?: string[],
     limit: number = 10
   ): Promise<Array<LawTextWithDomain & { similarity: number }>> {
     const embeddingVector = `[${queryEmbedding.join(',')}]`;
-    
+
     const baseQuery = db.select({
       id: lawTexts.id,
       title: lawTexts.title,
@@ -181,12 +184,12 @@ export class DatabaseStorage implements IStorage {
     .innerJoin(lawTexts, eq(textEmbeddings.lawTextId, lawTexts.id))
     .leftJoin(legalDomains, eq(lawTexts.domainId, legalDomains.id));
 
-    const whereClause = domainIds && domainIds.length > 0 
+    const whereClause = domainIds && domainIds.length > 0
       ? inArray(lawTexts.domainId, domainIds)
       : undefined;
 
     const query = whereClause ? baseQuery.where(whereClause) : baseQuery;
-    
+
     return await query
       .orderBy(sql`${textEmbeddings.embedding} <=> ${embeddingVector}::vector`)
       .limit(limit);
@@ -200,7 +203,7 @@ export class DatabaseStorage implements IStorage {
           .where(eq(chatSessions.userId, userId))
           .orderBy(desc(chatSessions.updatedAt));
       }
-      
+
       return await db.select().from(chatSessions)
         .orderBy(desc(chatSessions.updatedAt));
     } catch (error) {
@@ -211,11 +214,11 @@ export class DatabaseStorage implements IStorage {
 
   async getChatSessionById(id: string): Promise<ChatSessionWithMessages | undefined> {
     const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, id));
-    
+
     if (!session) return undefined;
 
     const messages = await this.getChatMessages(id);
-    
+
     return {
       ...session,
       messages,
@@ -239,7 +242,7 @@ export class DatabaseStorage implements IStorage {
     if (session.title !== undefined) updateData.title = session.title;
     if (session.userId !== undefined) updateData.userId = session.userId;
     if (session.selectedDomains !== undefined) updateData.selectedDomains = session.selectedDomains;
-    
+
     const [updated] = await db.update(chatSessions)
       .set(updateData)
       .where(eq(chatSessions.id, id))
@@ -273,13 +276,13 @@ export class DatabaseStorage implements IStorage {
 
     for (const message of messages) {
       const citedLawTexts = [];
-      
+
       const citations = (message.citations ?? []) as Array<{
         lawTextId: string;
         relevanceScore: number;
         snippet: string;
       }>;
-      
+
       if (citations && Array.isArray(citations)) {
         for (const citation of citations) {
           const lawText = await this.getLawTextById(citation.lawTextId);
