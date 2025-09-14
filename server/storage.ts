@@ -62,13 +62,17 @@ export class DatabaseStorage implements IStorage {
   // Legal Domains
   async getLegalDomains(): Promise<LegalDomain[]> {
     try {
-      const domains = await db.select().from(legalDomains).orderBy(legalDomains.name);
-      console.log("Legal domains fetched successfully:", domains.length);
-      return domains;
+      const result = await db.select().from(legalDomains).orderBy(legalDomains.name);
+      return result;
     } catch (error) {
       console.error("Database error in getLegalDomains:", error);
-      console.error("Error details:", error instanceof Error ? error.message : 'Unknown error');
-      throw new Error(`Failed to fetch legal domains from database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Return empty array if database is not available instead of throwing
+      if (error instanceof Error && error.message.includes('certificate')) {
+        console.warn("Database connection failed due to SSL certificate issues. Returning empty array.");
+        return [];
+      }
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to fetch legal domains from database: ${errorMessage}`);
     }
   }
 
@@ -208,6 +212,11 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(chatSessions.updatedAt));
     } catch (error) {
       console.error("Database error in getChatSessions:", error);
+      // Return empty array if database is not available instead of throwing
+      if (error instanceof Error && error.message.includes('certificate')) {
+        console.warn("Database connection failed due to SSL certificate issues. Returning empty array.");
+        return [];
+      }
       throw new Error("Failed to fetch chat sessions from database");
     }
   }
@@ -225,12 +234,16 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async createChatSession(session: InsertChatSession): Promise<ChatSession> {
+  async createChatSession(data: InsertChatSession): Promise<ChatSession> {
     try {
-      const [newSession] = await db.insert(chatSessions).values(session).returning();
+      const [newSession] = await db.insert(chatSessions).values(data).returning();
       return newSession;
     } catch (error) {
       console.error("Database error in createChatSession:", error);
+      // Provide more specific error handling for SSL issues
+      if (error instanceof Error && error.message.includes('certificate')) {
+        throw new Error("Database connection failed. Please check your database configuration.");
+      }
       throw new Error("Failed to create chat session in database");
     }
   }
