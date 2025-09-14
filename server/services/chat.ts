@@ -1,5 +1,6 @@
 import { embeddingsService } from "./embeddings";
 import { storage } from "../storage";
+import { deepSeekService } from "./deepseek";
 import { type InsertChatMessage, type ChatMessage } from "@shared/schema";
 
 interface LLMResponse {
@@ -106,9 +107,86 @@ SVAR:`;
 
   // REMOVED: Old keyword matching method - replaced with semantic retrieval using embeddings
 
-  private async callLLM(prompt: string): Promise<string> {
-    // This will be replaced with DeepSeek API integration
-    throw new Error("LLM integration pending - DeepSeek setup in progress");
+  private async callLLM(prompt: string, isSimpleQuery = false): Promise<string> {
+    try {
+      if (isSimpleQuery) {
+        // Use simple chat for basic conversations (greetings, small talk)
+        return await deepSeekService.simpleChat(prompt);
+      } else {
+        // For legal queries, we need to extract context and question
+        const { question, context } = this.parseStructuredPrompt(prompt);
+        return await deepSeekService.generateLegalResponse(question, context);
+      }
+    } catch (error) {
+      console.error("Error calling DeepSeek LLM:", error);
+      return this.generateErrorFallback(error as Error);
+    }
+  }
+
+  /**
+   * Check if a query is simple (greeting, small talk) vs complex legal query
+   */
+  private isSimpleQuery(query: string): boolean {
+    const queryLower = query.toLowerCase().trim();
+    
+    // Simple greetings and short responses
+    const simplePatterns = [
+      /^(hej|hallo|hi|goddag|god morgen|god aften)\s*!?$/,
+      /^(tak|tusind tak|mange tak)\s*!?$/,
+      /^(farvel|vi ses|ha'det)\s*!?$/,
+      /^(hvordan har du det|hvordan går det)\??$/,
+      /^(hvad kan du|hvad laver du|hvem er du)\??$/
+    ];
+    
+    return simplePatterns.some(pattern => pattern.test(queryLower)) || queryLower.length < 10;
+  }
+
+  /**
+   * Parse structured prompt to extract question and legal context
+   */
+  private parseStructuredPrompt(prompt: string): { question: string; context?: string } {
+    // Extract question from structured prompt
+    const questionMatch = prompt.match(/SPØRGSMÅL: ([\s\S]*?)(?:\n\n|$)/);
+    const question = questionMatch ? questionMatch[1].trim() : prompt;
+    
+    // Extract legal context if present
+    const contextMatch = prompt.match(/RELEVANTE LOVBESTEMMELSER:\n([\s\S]*?)(?:\n\nINSTRUKTIONER:|$)/);
+    const context = contextMatch ? contextMatch[1].trim() : undefined;
+    
+    return { question, context };
+  }
+
+  /**
+   * Generate fallback response when DeepSeek API fails
+   */
+  private generateErrorFallback(error: Error): string {
+    if (error.message.includes('DEEPSEEK_API_KEY not configured')) {
+      return `**Systemkonfiguration påkrævet:**
+
+DeepSeek API-nøglen er ikke konfigureret. For at aktivere AI-svar skal du:
+
+1. Oprette en konto på platform.deepseek.com
+2. Generere en API-nøgle
+3. Tilføje den til systemets miljøvariabler
+
+**Midlertidig hjælp:**
+- Søg i de relevante lovbestemmelser via semantisk søgning
+- Konsulter Retsinformation for aktuelle regler
+- Kontakt en juridisk rådgiver for komplekse spørgsmål
+
+*Systemet vil fungere normalt når API-nøglen er konfigureret.*`;
+    }
+    
+    return `**Systemfejl:**
+
+Der opstod en midlertidig fejl ved generering af AI-svar: ${error.message}
+
+**Alternativer:**
+- Prøv igen om et øjeblik
+- Søg manuelt i de relevante lovbestemmelser
+- Konsulter Retsinformation eller en juridisk ekspert
+
+*Vi arbejder på at løse problemet.*`;
   }
 
 

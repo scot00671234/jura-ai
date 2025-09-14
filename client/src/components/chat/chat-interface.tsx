@@ -88,29 +88,19 @@ export default function ChatInterface({ sessionId }: ChatInterfaceProps) {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Chat Header */}
-        <div className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="md:hidden"
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              data-testid="button-toggle-sidebar"
-            >
-              <MessageSquare className="h-5 w-5" />
-            </Button>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Juridisk AI Chat</h2>
-              <p className="text-sm text-muted-foreground">Stil spørgsmål om dansk lovgivning</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-legal/10 text-legal">
-              <span className="w-2 h-2 bg-legal rounded-full mr-1.5"></span>
-              Tilgængelig
-            </span>
-          </div>
+        {/* Minimal Header */}
+        <div className="bg-background px-6 py-3 flex items-center justify-between border-b border-border/50">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="md:hidden"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            data-testid="button-toggle-sidebar"
+          >
+            <MessageSquare className="h-5 w-5" />
+          </Button>
+          <h1 className="text-lg font-medium text-foreground mx-auto md:mx-0">Juridisk AI</h1>
+          <div className="hidden md:block w-6"></div>
         </div>
 
         {/* Chat Messages */}
@@ -119,33 +109,23 @@ export default function ChatInterface({ sessionId }: ChatInterfaceProps) {
             
             {!messages || messages.length === 0 ? (
               /* Welcome Message */
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Brain className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">Velkommen til JuraAssist</h3>
-                <p className="text-muted-foreground max-w-lg mx-auto">
-                  Stil spørgsmål om dansk lovgivning og få præcise svar baseret på opdaterede lovtekster fra Retsinformation. 
-                  AI'en vil finde relevante paragraffer og give dig en klar forklaring.
+              <div className="text-center py-16">
+                <h2 className="text-2xl font-medium text-foreground mb-3">Hvordan kan jeg hjælpe dig?</h2>
+                <p className="text-muted-foreground max-w-md mx-auto mb-8">
+                  Stil spørgsmål om dansk lovgivning
                 </p>
                 
-                {/* Suggested Questions */}
-                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-                  {suggestedQuestions.map((item, index) => (
-                    <Button
+                {/* Simplified Suggestions */}
+                <div className="max-w-md mx-auto space-y-2">
+                  {suggestedQuestions.slice(0, 3).map((item, index) => (
+                    <button
                       key={index}
-                      variant="outline"
-                      className="p-4 h-auto text-left justify-start hover:border-primary/50 hover:bg-secondary/50 transition-all group"
+                      className="w-full p-3 text-left border border-border/50 rounded-lg hover:bg-secondary/30 transition-colors text-sm"
                       onClick={() => handleUseSuggestion(item.question)}
                       data-testid={`button-suggestion-${index}`}
                     >
-                      <div className="w-full">
-                        <div className="text-sm font-medium text-foreground group-hover:text-primary mb-1">
-                          {item.question}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{item.category}</div>
-                      </div>
-                    </Button>
+                      {item.question}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -167,19 +147,12 @@ export default function ChatInterface({ sessionId }: ChatInterfaceProps) {
                   <div className="flex justify-start">
                     <div className="max-w-3xl w-full">
                       <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0 w-8 h-8 bg-legal/10 rounded-full flex items-center justify-center mt-1">
-                          <Brain className="w-4 h-4 text-legal animate-pulse" />
+                        <div className="flex-shrink-0 w-6 h-6 bg-muted/20 rounded-full flex items-center justify-center mt-1">
+                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse"></div>
                         </div>
                         <div className="flex-1">
-                          <div className="bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-muted-foreground">Søger i lovbestemmelser</span>
-                              <div className="flex space-x-1">
-                                <div className="w-1 h-1 bg-muted-foreground rounded-full animate-pulse"></div>
-                                <div className="w-1 h-1 bg-muted-foreground rounded-full animate-pulse delay-100"></div>
-                                <div className="w-1 h-1 bg-muted-foreground rounded-full animate-pulse delay-200"></div>
-                              </div>
-                            </div>
+                          <div className="bg-muted/20 rounded-lg px-4 py-3">
+                            <span className="text-sm text-muted-foreground">Skriver...</span>
                           </div>
                         </div>
                       </div>

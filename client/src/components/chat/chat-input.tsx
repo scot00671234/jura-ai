@@ -63,16 +63,6 @@ export default function ChatInput({ onSendMessage, selectedDomains, isLoading }:
                 disabled={isLoading}
                 data-testid="input-message"
               />
-              <div className="absolute right-3 top-3 flex items-center space-x-1">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="p-1.5 h-auto"
-                  data-testid="button-attach-file"
-                >
-                  <Paperclip className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                </Button>
-              </div>
             </div>
             <Button
               onClick={handleSubmit}
@@ -84,18 +74,9 @@ export default function ChatInput({ onSendMessage, selectedDomains, isLoading }:
             </Button>
           </div>
           
-          {/* Input helpers */}
-          <div className="flex items-center justify-between mt-2 px-2">
-            <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-              <span>Tryk Enter + Shift for nye linjer</span>
-              <span>•</span>
-              <span data-testid="text-selected-domains">
-                {selectedDomains.length} lovområde{selectedDomains.length !== 1 ? 'r' : ''} valgt
-              </span>
-            </div>
-            <div className="text-xs text-muted-foreground" data-testid="text-character-count">
-              <span>{message.length}</span>/2000 tegn
-            </div>
+          {/* Minimal input helpers */}
+          <div className="mt-2 text-center">
+            <span className="text-xs text-muted-foreground">Tryk Shift+Enter for ny linje</span>
           </div>
         </div>
       </div>

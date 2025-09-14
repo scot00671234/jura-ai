@@ -73,75 +73,24 @@ export default function Sidebar({
         </Button>
       </div>
 
-      {/* Legal Domain Filters */}
+      {/* Recent Chats */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-foreground mb-3">Lovområder</h3>
-            <div className="space-y-2">
-              {legalDomains.map((domain) => (
-                <div
-                  key={domain.id}
-                  className="flex items-center space-x-3 p-3 rounded-lg hover:bg-secondary cursor-pointer transition-colors group"
-                  onClick={() => handleDomainToggle(domain.id)}
-                  data-testid={`domain-${domain.id}`}
-                >
-                  <Checkbox
-                    checked={selectedDomains.includes(domain.id)}
-                    onChange={() => handleDomainToggle(domain.id)}
-                    className="w-4 h-4"
-                    data-testid={`checkbox-domain-${domain.id}`}
-                  />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                      {domain.name}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {getDomainStats(domain.id)} paragraffer
-                    </div>
-                  </div>
-                </div>
-              ))}
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground mb-3">Seneste chats</h3>
+          {recentSessions.slice(0, 8).map((session: any) => (
+            <div
+              key={session.id}
+              className="p-3 rounded-lg hover:bg-secondary cursor-pointer transition-colors group"
+              data-testid={`recent-session-${session.id}`}
+            >
+              <div className="text-sm text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                {session.title || "Ny chat"}
+              </div>
             </div>
-          </div>
-
-          {/* Recent Searches */}
-          <div className="pt-4 border-t border-border">
-            <h3 className="text-sm font-medium text-foreground mb-3">Seneste søgninger</h3>
-            <div className="space-y-2">
-              {recentSessions.slice(0, 5).map((session: any) => (
-                <div
-                  key={session.id}
-                  className="p-3 rounded-lg hover:bg-secondary cursor-pointer transition-colors group"
-                  data-testid={`recent-session-${session.id}`}
-                >
-                  <div className="text-sm text-foreground group-hover:text-primary transition-colors">
-                    {session.title || "Untitled Chat"}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {new Date(session.createdAt).toLocaleDateString("da-DK", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Sidst opdateret: I dag</span>
-          <Button variant="ghost" size="sm" data-testid="button-refresh-data">
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
