@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import ChatPage from "@/pages/chat";
+import AdminPage from "@/pages/admin";
 
 function Router() {
   return (
@@ -12,6 +13,7 @@ function Router() {
       <Route path="/" component={ChatPage} />
       <Route path="/chat" component={ChatPage} />
       <Route path="/chat/:sessionId" component={ChatPage} />
+      <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );

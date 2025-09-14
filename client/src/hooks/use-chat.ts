@@ -107,6 +107,7 @@ export function useChat(sessionId?: string) {
         selectedDomains: domainIds || [],
       });
       sessionIdToUse = newSession.id;
+      setCurrentSessionId(newSession.id);
     }
     
     // Send message using the session ID
