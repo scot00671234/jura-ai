@@ -61,7 +61,12 @@ export class DatabaseStorage implements IStorage {
 
   // Legal Domains
   async getLegalDomains(): Promise<LegalDomain[]> {
-    return await db.select().from(legalDomains).where(eq(legalDomains.isActive, true));
+    try {
+      return await db.select().from(legalDomains).where(eq(legalDomains.isActive, true));
+    } catch (error) {
+      console.error("Database error in getLegalDomains:", error);
+      throw new Error("Failed to fetch legal domains from database");
+    }
   }
 
   async createLegalDomain(domain: InsertLegalDomain): Promise<LegalDomain> {
@@ -189,14 +194,19 @@ export class DatabaseStorage implements IStorage {
 
   // Chat Sessions
   async getChatSessions(userId?: string): Promise<ChatSession[]> {
-    if (userId) {
+    try {
+      if (userId) {
+        return await db.select().from(chatSessions)
+          .where(eq(chatSessions.userId, userId))
+          .orderBy(desc(chatSessions.updatedAt));
+      }
+      
       return await db.select().from(chatSessions)
-        .where(eq(chatSessions.userId, userId))
         .orderBy(desc(chatSessions.updatedAt));
+    } catch (error) {
+      console.error("Database error in getChatSessions:", error);
+      throw new Error("Failed to fetch chat sessions from database");
     }
-    
-    return await db.select().from(chatSessions)
-      .orderBy(desc(chatSessions.updatedAt));
   }
 
   async getChatSessionById(id: string): Promise<ChatSessionWithMessages | undefined> {
@@ -213,8 +223,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createChatSession(session: InsertChatSession): Promise<ChatSession> {
-    const [newSession] = await db.insert(chatSessions).values(session).returning();
-    return newSession;
+    try {
+      const [newSession] = await db.insert(chatSessions).values(session).returning();
+      return newSession;
+    } catch (error) {
+      console.error("Database error in createChatSession:", error);
+      throw new Error("Failed to create chat session in database");
+    }
   }
 
   async updateChatSession(id: string, session: Partial<InsertChatSession>): Promise<ChatSession | undefined> {
