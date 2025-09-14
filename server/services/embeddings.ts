@@ -53,14 +53,8 @@ export class EmbeddingsService {
       
       for (const lawText of batch) {
         try {
-          // Check if embedding already exists
-          const existingEmbeddings = await storage.searchSimilarTexts([], [], 1);
-          const hasEmbedding = existingEmbeddings.some(e => e.id === lawText.id);
-          
-          if (hasEmbedding) {
-            console.log(`Embedding already exists for law text: ${lawText.title}`);
-            continue;
-          }
+          // Skip checking for existing embeddings for now - just generate them
+          console.log(`Processing law text: ${lawText.title}`);
 
           // Prepare text for embedding - combine title, section info, and content
           const textForEmbedding = [

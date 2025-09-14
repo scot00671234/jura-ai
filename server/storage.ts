@@ -236,7 +236,11 @@ export class DatabaseStorage implements IStorage {
 
   async createChatSession(data: InsertChatSession): Promise<ChatSession> {
     try {
-      const [newSession] = await db.insert(chatSessions).values(data).returning();
+      const [newSession] = await db.insert(chatSessions).values({
+        title: data.title,
+        userId: data.userId,
+        selectedDomains: data.selectedDomains || [],
+      }).returning();
       return newSession;
     } catch (error) {
       console.error("Database error in createChatSession:", error);
