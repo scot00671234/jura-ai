@@ -42,9 +42,12 @@ export class ChatService {
         }));
       }
 
+      // Always use local LLM for responses, even if no specific law texts found
       if (relevantTexts.length === 0) {
+        // Use local LLM without specific legal text context
+        const llmResponse = await this.callLLM(`SPØRGSMÅL: ${query}\n\nGiv et juridisk svar baseret på dansk lovgivning.`);
         return {
-          content: "Jeg kunne ikke finde relevante lovbestemmelser for dit spørgsmål. Prøv at omformulere dit spørgsmål eller kontroller om de rigtige lovområder er valgt.",
+          content: llmResponse,
           citations: [],
         };
       }
@@ -122,12 +125,20 @@ SVAR:`;
     // Extract key legal concepts
     const legalConcepts = this.extractLegalConcepts(prompt);
     
-    if (legalConcepts.includes('opsigelse')) {
-      return this.generateOpsigelseSvar(prompt);
-    } else if (legalConcepts.includes('ansættelse') || legalConcepts.includes('kontrakt')) {
-      return this.generateAnsættelseSvar(prompt);
-    } else if (legalConcepts.includes('funktionær')) {
-      return this.generateFunktionærSvar(prompt);
+    if (legalConcepts.includes('employment')) {
+      return this.generateEmploymentResponse(prompt);
+    } else if (legalConcepts.includes('product_liability')) {
+      return this.generateProductLiabilityResponse(prompt);
+    } else if (legalConcepts.includes('consumer')) {
+      return this.generateConsumerResponse(prompt);
+    } else if (legalConcepts.includes('contract')) {
+      return this.generateContractResponse(prompt);
+    } else if (legalConcepts.includes('tax')) {
+      return this.generateTaxResponse(prompt);
+    } else if (legalConcepts.includes('criminal')) {
+      return this.generateCriminalResponse(prompt);
+    } else if (legalConcepts.includes('corporate')) {
+      return this.generateCorporateResponse(prompt);
     }
     
     return this.generateGeneralLegalResponse(prompt);
@@ -137,21 +148,45 @@ SVAR:`;
     const concepts: string[] = [];
     const text = prompt.toLowerCase();
     
-    const legalTerms = [
-      'opsigelse', 'ansættelse', 'kontrakt', 'funktionær', 'varsel', 
-      'arbejdsret', 'lovgivning', 'paragraf', 'bestemmelse', 'regel'
-    ];
+    const legalTerms = {
+      'opsigelse': 'employment',
+      'ansættelse': 'employment', 
+      'kontrakt': 'contract',
+      'funktionær': 'employment',
+      'varsel': 'employment',
+      'produktansvar': 'product_liability',
+      'produkthæftelse': 'product_liability',
+      'defekte varer': 'product_liability',
+      'fejlbehæftede produkter': 'product_liability',
+      'forbrugerklager': 'consumer',
+      'forbrugerbeskyttelse': 'consumer',
+      'købeloven': 'sales_law',
+      'reklamationsret': 'consumer',
+      'erstatning': 'liability',
+      'skadeserstatning': 'liability',
+      'moms': 'tax',
+      'skat': 'tax',
+      'afgift': 'tax',
+      'strafret': 'criminal',
+      'strafferet': 'criminal',
+      'bøde': 'criminal',
+      'miljøret': 'environmental',
+      'arbejdsmiljø': 'work_environment',
+      'selskabsret': 'corporate',
+      'aktieselskab': 'corporate',
+      'ApS': 'corporate'
+    };
     
-    legalTerms.forEach(term => {
+    Object.keys(legalTerms).forEach(term => {
       if (text.includes(term)) {
-        concepts.push(term);
+        concepts.push(legalTerms[term as keyof typeof legalTerms]);
       }
     });
     
     return concepts;
   }
 
-  private generateOpsigelseSvar(prompt: string): string {
+  private generateEmploymentResponse(prompt: string): string {
     return `**Vedrørende opsigelse:**
 
 Baseret på dansk arbejdsret, særligt Funktionærloven, gælder følgende hovedregler:
@@ -170,48 +205,177 @@ Baseret på dansk arbejdsret, særligt Funktionærloven, gælder følgende hoved
 *Dette er juridisk vejledning baseret på danske love og bør ikke erstatte professionel juridisk rådgivning.*`;
   }
 
-  private generateAnsættelseSvar(prompt: string): string {
-    return `**Vedrørende ansættelsesforhold:**
+  private generateProductLiabilityResponse(prompt: string): string {
+    return `**Vedrørende produktansvar og defekte varer:**
 
-Ansættelseskontrakter i Danmark skal følge lovgivningens minimumsbestemmelser:
+Dansk ret har stærke forbrugerbeskyttelsesregler ved defekte produkter:
 
-**Grundlæggende krav:**
-- Skriftlig ansættelseskontrakt inden 1 måned
-- Arbejdets karakter og placering
-- Løn- og ansættelsesvilkår
+**Købeloven (§ 76-83):**
+- Sælger er ansvarlig for produkters egenskaber og sikkerhed
+- Forbrugeren har reklamationsret ved fejl og mangler
+- 2-årig reklamationsfrist for forbrugerkøb
 
-**Funktionærloven § 1:**
-- Definerer funktionærer som ikke-lønarbejdere
-- Omfatter de fleste kontoransatte
+**Produktansvarsloven:**
+- Producenter er ansvarlige for personskader fra defekte produkter
+- Objektivt ansvar - krav om bevis for defekt, skade og årsagssammenhæng
+- Ikke ansvar for udviklingsrisici (state of the art-forsvaret)
 
-**Vigtige rettigheder:**
-- Ret til ferie og feriegodtgørelse
-- Beskyttelse mod usaglig opsigelse
-- Ret til fyrtøjning ved længere ansættelse
+**Forbrugerrettigheder:**
+- Afhjælpning, omlevering, prisafslag eller ophævelse
+- Erstatning for personskader
+- Mulighed for tilbagekaldelse ved farlige produkter
 
-*Husk altid at konsultere de relevante overenskomster og særlige branchemæssige regler.*`;
+**Praktiske råd:**
+- Dokumenter fejlen hurtigt og kontakt sælger/producent
+- Gem kvitteringer og kommunikation
+- Ved personskader, kontakt forsikring og/eller advokat
+
+*Dette er juridisk vejledning og erstatter ikke professionel juridisk rådgivning ved konkrete sager.*`;
   }
 
-  private generateFunktionærSvar(prompt: string): string {
-    return `**Om funktionærstatus:**
+  private generateConsumerResponse(prompt: string): string {
+    return `**Forbrugerrettigheder og -beskyttelse:**
 
-**Funktionærloven definerer funktionærer som:**
-- Personer der ikke er lønarbejdere
-- Typisk kontor- og administrative medarbejdere
-- Omfattet af særlige beskyttelsesregler
+Danmarks forbrugerlovgivning giver omfattende beskyttelse:
 
-**Særlige rettigheder for funktionærer:**
-- Længere opsigelsesvarsel ved længere ansættelse
-- Ret til funktionærlignende vilkår
-- Beskyttelse mod usaglig afskedigelse
+**Forbrugeraftaleloven:**
+- Fortrydelsesret ved fjernkøb (14 dage)
+- Skærpede krav til information
+- Særlige regler for aggressive salgsteknikker
 
-**§ 2a - Forlænget opsigelsesvarsel:**
-- Efter 6 måneder: 3 måneders varsel
-- Efter 3 år: 4 måneders varsel  
-- Efter 6 år: 5 måneders varsel
-- Efter 9 år: 6 måneders varsel
+**Købeloven (forbrugerkøb):**
+- 2-årig reklamationsret
+- Mangelsansvar hos sælger
+- Ret til afhjælpning eller prisafslag
 
-*Funktionærstatus afgøres konkret baseret på arbejdets karakter og ikke kun jobtitlen.*`;
+**Markedsføringsloven:**
+- Forbud mod vildledende markedsføring
+- Sammenlignende reklame skal være korrekt
+- Beskyttelse mod aggressive handelspraksisser
+
+**Hvis du har problemer:**
+- Kontakt først virksomheden direkte
+- Klage til Forbrugerklagenævnet (gratis)
+- Ved større beløb: juridisk bistand eller retssag
+
+*Forbrugerbeskyttelsen er stærkere end erhvervskøb - brug dine rettigheder aktivt.*`;
+  }
+
+  private generateContractResponse(prompt: string): string {
+    return `**Kontraktret og aftaler:**
+
+Danske kontraktregler bygger på aftalefriheden med lovgivningsmæssige begrænsninger:
+
+**Grundprincipper:**
+- Aftalefrihed - parterne kan som udgangspunkt aftale hvad de vil
+- Retshandel- og aftalelovens begrænsninger
+- Aftaler skal opfyldes (pacta sunt servanda)
+
+**Vigtige forhold:**
+- Skriftlighed ikke altid påkrævet, men anbefales
+- Standardvilkår skal være rimelige (AFTL § 36)
+- Forbrugerbeskyttende regler kan ikke fraviges
+
+**Ved kontraktbrud:**
+- Krav om opfyldelse eller erstatning
+- Mulighed for ophævelse ved væsentlig misligholdelse
+- Rentekrav ved forsinket betaling
+
+**Praktiske anbefalinger:**
+- Få aftaler på skrift
+- Læs vilkår grundigt før underskrift
+- Overvej juridisk rådgivning ved store aftaler
+
+*Kontraktret er komplekst - søg juridisk bistand ved tvivl om dine rettigheder.*`;
+  }
+
+  private generateTaxResponse(prompt: string): string {
+    return `**Skat og afgifter:**
+
+Det danske skattesystem er komplekst med mange forskellige regler:
+
+**Indkomstskat:**
+- Progressiv beskatning af almindelig indkomst
+- Særlige regler for kapitalindkomst
+- Forskellige fradrag og tillæg
+
+**Moms:**
+- 25% standardsats på de fleste varer og ydelser
+- Fritagelser for visse områder (sundhed, undervisning)
+- Registreringspligt ved omsætning over 50.000 kr.
+
+**Erhvervsskat:**
+- Selskabsskat på 22%
+- Forskellige afskrivningsregler
+- Særlige regler for mindre virksomheder
+
+**Ved skatteproblemer:**
+- Kontakt dit lokale skattecenter
+- Bruger Skatteforvaltningens hjemmeside
+- Søg professionel skattemæssig rådgivning
+
+*Skattereglerne ændres ofte - hold dig opdateret gennem officielle kanaler.*`;
+  }
+
+  private generateCriminalResponse(prompt: string): string {
+    return `**Strafferetslige spørgsmål:**
+
+Danmarks straffelovgivning omfatter både straffeloven og særlovgivning:
+
+**Grundprincipper:**
+- Legalitetsprincippet - ingen straf uden lov
+- Skyldsprincippet - kun straf ved skyld
+- Proportionalitetsprincippet - straffen skal passe til forbrydelsen
+
+**Hovedkategorier:**
+- Forbrydelser mod person (vold, drab, voldtægt)
+- Forbrydelser mod ejendom (tyveri, bedrageri, hærværk)
+- Trafikforseelser og særlovovertrædelser
+
+**Procedureregler:**
+- Politiets rolle i efterforskning
+- Anklagemyndighedens rolle
+- Retten til forsvar
+
+**Hvis du er involveret:**
+- Kontakt straks en advokat
+- Brug din tavshedsret
+- Samarbejd ikke uden juridisk rådgivning
+
+*Ved mistanke om kriminalitet er professionel juridisk bistand afgørende for dit forsvar.*`;
+  }
+
+  private generateCorporateResponse(prompt: string): string {
+    return `**Selskabsret og virksomhedsjura:**
+
+Danske virksomhedsformer har forskellige juridiske rammer:
+
+**Aktieselskaber (A/S):**
+- Minimumskapital: 400.000 kr.
+- Begrænset hæftelse for aktionærer
+- Omfattende ledelsesregler og regnskabskrav
+
+**Anpartsselskaber (ApS):**
+- Minimumskapital: 40.000 kr.
+- Enklere struktur end A/S
+- Begrænset hæftelse for ejere
+
+**Personlige virksomhedsformer:**
+- Enkeltmandsvirksomhed - fuld personlig hæftelse
+- I/S - deltagerne hæfter solidarisk
+
+**Vigtige områder:**
+- Vedtægter og selskabsaftaler
+- Ledelsesansvar og hæftelse
+- Regnskab og revision
+- Kapitalregler og udlodninger
+
+**Ved selskabsstiftelse:**
+- Overvej grundigt valg af selskabsform
+- Få udarbejdet professionelle vedtægter
+- Forstå dine forpligtelser som ledelse
+
+*Selskabsret er teknisk komplekst - brug altid professionel juridisk og regnskabsmæssig rådgivning.*`;
   }
 
   private generateGeneralLegalResponse(prompt: string): string {
