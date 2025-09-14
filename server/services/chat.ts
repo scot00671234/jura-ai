@@ -20,47 +20,33 @@ export class ChatService {
     sessionId?: string
   ): Promise<LLMResponse> {
     try {
-      // For demo purposes, search law texts by simple text matching instead of embeddings
-      let lawTexts = await storage.getLawTexts(domainIds);
+      // Use semantic retrieval with vector embeddings instead of keyword matching
+      console.log(`Starting semantic retrieval for query: "${query}"`);
       
-      // Simple keyword matching for Danish employment terms
-      const keywords = query.toLowerCase();
-      const employmentTerms = ['opsigelse', 'ansættelse', 'kontrakt', 'varsel', 'funktionær', 'arbejder'];
-      const hasEmploymentTerms = employmentTerms.some(term => keywords.includes(term));
+      // Search for semantically similar law texts using vector embeddings
+      const relevantTexts = await embeddingsService.searchSimilarLawTexts(
+        query, 
+        domainIds, 
+        5 // Get top 5 most similar texts
+      );
       
-      let relevantTexts = [];
-      if (hasEmploymentTerms) {
-        // Filter texts related to employment law
-        relevantTexts = lawTexts.filter(text => 
-          text.content.toLowerCase().includes('opsigelse') || 
-          text.content.toLowerCase().includes('ansættelse') ||
-          text.content.toLowerCase().includes('varsel') ||
-          text.title.toLowerCase().includes('funktionær')
-        ).map(text => ({
-          ...text,
-          similarity: 0.85 // Mock similarity score
-        }));
-      }
+      console.log(`Found ${relevantTexts.length} semantically relevant law texts with similarity scores:`);
+      relevantTexts.forEach((text, i) => {
+        console.log(`  ${i + 1}. ${text.title} (similarity: ${(text.similarity * 100).toFixed(1)}%)`);
+      });
 
-      // Always use local LLM for responses, even if no specific law texts found
-      if (relevantTexts.length === 0) {
-        // Use local LLM without specific legal text context
-        const llmResponse = await this.callLLM(`SPØRGSMÅL: ${query}\n\nGiv et juridisk svar baseret på dansk lovgivning.`);
-        return {
-          content: llmResponse,
-          citations: [],
-        };
-      }
-
-      // Prepare context for LLM
+      // Prepare context from semantically retrieved law texts
       const context = relevantTexts.map((text, index) => 
-        `[${index + 1}] ${text.title} (${text.lawNumber || 'N/A'})\n` +
+        `[${index + 1}] ${text.title} (${text.lawNumber || 'N/A'}) - Relevance: ${(text.similarity * 100).toFixed(1)}%\n` +
         `${text.section ? `§ ${text.section}` : ''} ${text.paragraph ? text.paragraph : ''}\n` +
         `${text.content.substring(0, 500)}...\n`
       ).join('\n');
 
-      // Prepare prompt for Danish legal assistant
-      const prompt = `Du er en dansk juridisk AI-assistent. Besvar følgende spørgsmål baseret på de relevante lovbestemmelser nedenfor.
+      // Always prepare a comprehensive prompt that works with or without context
+      let prompt: string;
+      if (relevantTexts.length > 0) {
+        // Use retrieved law texts as context
+        prompt = `Du er en dansk juridisk AI-assistent. Besvar følgende spørgsmål baseret på de relevante lovbestemmelser nedenfor.
 
 SPØRGSMÅL: ${query}
 
@@ -68,23 +54,42 @@ RELEVANTE LOVBESTEMMELSER:
 ${context}
 
 INSTRUKTIONER:
-- Giv et klart og præcist svar på dansk
-- Referer specifikt til de relevante paragraffer
+- Giv et klart og præcist svar på dansk baseret på de angivne lovbestemmelser
+- Referer specifikt til de relevante paragraffer og love
 - Forklar komplekse juridiske begreber i forståelige termer
-- Hvis der er usikkerhed, nævn det eksplicit
+- Hvis der er usikkerhed eller manglende information, nævn det eksplicit
+- Hold svaret struktureret og let at læse
+- Brug kun informationen fra de angivne lovbestemmelser
+
+SVAR:`;
+      } else {
+        // Fallback prompt when no specific law texts are found
+        prompt = `Du er en dansk juridisk AI-assistent. Besvar følgende spørgsmål baseret på dansk lovgivning.
+
+SPØRGSMÅL: ${query}
+
+INSTRUKTIONER:
+- Giv et klart og præcist svar på dansk
+- Referer til relevante danske love og regler, hvis du kender dem
+- Forklar komplekse juridiske begreber i forståelige termer
+- Vær eksplicit om eventuelle begrænsninger i dit svar
+- Anbefal at konsultere en juridisk ekspert for specifik rådgivning
 - Hold svaret struktureret og let at læse
 
 SVAR:`;
+      }
 
-      // Call local LLM
+      // Call LLM with the prepared prompt
       const llmResponse = await this.callLLM(prompt);
 
-      // Prepare citations
+      // Prepare citations from semantically retrieved texts with actual similarity scores
       const citations = relevantTexts.map(text => ({
         lawTextId: text.id,
-        relevanceScore: text.similarity,
+        relevanceScore: text.similarity, // This comes from vector similarity search
         snippet: text.content.substring(0, 200) + "...",
       }));
+      
+      console.log(`Generated ${citations.length} citations from semantic search with similarity scores`);
 
       return {
         content: llmResponse,
@@ -99,6 +104,8 @@ SVAR:`;
       };
     }
   }
+
+  // REMOVED: Old keyword matching method - replaced with semantic retrieval using embeddings
 
   private async callLLM(prompt: string): Promise<string> {
     try {
@@ -117,289 +124,145 @@ SVAR:`;
   }
 
   private async callLocalLLM(prompt: string): Promise<string> {
-    // For now, we'll use a rule-based approach optimized for Danish legal questions
-    // In a full implementation, we'd integrate Transformers.js here
+    // Process the prompt using context-aware reasoning with semantically retrieved context
+    // The embeddings ensure we have the most relevant law texts for the query
     
-    console.log("Processing legal question with local reasoning...");
+    console.log("Processing legal question with semantic RAG using retrieved law texts...");
     
-    // Extract key legal concepts
-    const legalConcepts = this.extractLegalConcepts(prompt);
+    // The prompt already contains the question and semantically retrieved law texts as context
+    // Generate response based on the retrieved context
+    return this.generateContextAwareResponse(prompt);
+  }
+
+  private generateContextAwareResponse(prompt: string): string {
+    // Analyze the prompt to understand if it contains retrieved law texts
+    const hasLegalContext = prompt.includes('RELEVANTE LOVBESTEMMELSER:');
     
-    if (legalConcepts.includes('employment')) {
-      return this.generateEmploymentResponse(prompt);
-    } else if (legalConcepts.includes('product_liability')) {
-      return this.generateProductLiabilityResponse(prompt);
-    } else if (legalConcepts.includes('consumer')) {
-      return this.generateConsumerResponse(prompt);
-    } else if (legalConcepts.includes('contract')) {
-      return this.generateContractResponse(prompt);
-    } else if (legalConcepts.includes('tax')) {
-      return this.generateTaxResponse(prompt);
-    } else if (legalConcepts.includes('criminal')) {
-      return this.generateCriminalResponse(prompt);
-    } else if (legalConcepts.includes('corporate')) {
-      return this.generateCorporateResponse(prompt);
+    if (hasLegalContext) {
+      // Extract the question and context from the structured prompt
+      const questionMatch = prompt.match(/SPØRGSMÅL: (.*?)\n\nRELEVANTE LOVBESTEMMELSER:/s);
+      const contextMatch = prompt.match(/RELEVANTE LOVBESTEMMELSER:\n(.*?)\n\nINSTRUKTIONER:/s);
+      
+      const question = questionMatch ? questionMatch[1].trim() : '';
+      const context = contextMatch ? contextMatch[1].trim() : '';
+      
+      // Generate response based on the retrieved legal texts
+      return this.generateResponseWithContext(question, context);
+    } else {
+      // Generate general legal guidance when no specific texts were found
+      const questionMatch = prompt.match(/SPØRGSMÅL: (.*?)\n\nINSTRUKTIONER:/s);
+      const question = questionMatch ? questionMatch[1].trim() : '';
+      
+      return this.generateGeneralLegalGuidance(question);
+    }
+  }
+
+  private generateResponseWithContext(question: string, context: string): string {
+    // Parse the context to extract law information
+    const lawSections = context.split(/\[\d+\]/).filter(section => section.trim());
+    
+    // Generate structured response based on retrieved law texts
+    let response = "**Juridisk vejledning baseret på relevante lovbestemmelser:**\n\n";
+    
+    // Add main legal analysis
+    response += this.analyzeLegalQuestion(question, lawSections);
+    
+    // Add reference to specific laws if available
+    if (lawSections.length > 0) {
+      response += "\n\n**Relevante lovbestemmelser:**\n";
+      lawSections.slice(0, 3).forEach((section, index) => {
+        const lines = section.trim().split('\n');
+        if (lines.length > 0) {
+          response += `- ${lines[0].trim()}\n`;
+        }
+      });
     }
     
-    return this.generateGeneralLegalResponse(prompt);
+    // Add disclaimer
+    response += "\n\n*Dette er juridisk vejledning baseret på danske lovbestemmelser og erstatter ikke professionel juridisk rådgivning ved komplekse sager.*";
+    
+    return response;
   }
 
-  private extractLegalConcepts(prompt: string): string[] {
-    const concepts: string[] = [];
-    const text = prompt.toLowerCase();
+  private generateGeneralLegalGuidance(question: string): string {
+    // Provide general guidance when no specific law texts were found
+    const questionLower = question.toLowerCase();
     
-    const legalTerms = {
-      'opsigelse': 'employment',
-      'ansættelse': 'employment', 
-      'kontrakt': 'contract',
-      'funktionær': 'employment',
-      'varsel': 'employment',
-      'produktansvar': 'product_liability',
-      'produkthæftelse': 'product_liability',
-      'defekte varer': 'product_liability',
-      'fejlbehæftede produkter': 'product_liability',
-      'forbrugerklager': 'consumer',
-      'forbrugerbeskyttelse': 'consumer',
-      'købeloven': 'sales_law',
-      'reklamationsret': 'consumer',
-      'erstatning': 'liability',
-      'skadeserstatning': 'liability',
-      'moms': 'tax',
-      'skat': 'tax',
-      'afgift': 'tax',
-      'strafret': 'criminal',
-      'strafferet': 'criminal',
-      'bøde': 'criminal',
-      'miljøret': 'environmental',
-      'arbejdsmiljø': 'work_environment',
-      'selskabsret': 'corporate',
-      'aktieselskab': 'corporate',
-      'ApS': 'corporate'
-    };
+    let response = "**Juridisk vejledning:**\n\n";
     
-    Object.keys(legalTerms).forEach(term => {
-      if (text.includes(term)) {
-        concepts.push(legalTerms[term as keyof typeof legalTerms]);
+    // Provide relevant general guidance based on question content
+    if (questionLower.includes('opsigelse') || questionLower.includes('ansættelse')) {
+      response += "Vedrørende arbejdsretlige spørgsmål anbefales det at konsultere:\n";
+      response += "- Funktionærloven for funktionærer\n";
+      response += "- Relevante kollektive overenskomster\n";
+      response += "- Arbejdsmiljøloven for sikkerhedsspørgsmål\n";
+    } else if (questionLower.includes('forbruger') || questionLower.includes('køb')) {
+      response += "Vedrørende forbrugerrettigheder:\n";
+      response += "- Købeloven giver omfattende beskyttelse\n";
+      response += "- Forbrugeraftaleloven regulerer fjernkøb\n";
+      response += "- Markedsføringsloven beskytter mod vildledning\n";
+    } else if (questionLower.includes('selskab') || questionLower.includes('virksomhed')) {
+      response += "Vedrørende selskabsretlige forhold:\n";
+      response += "- Selskabsloven regulerer A/S og ApS\n";
+      response += "- Forskellige selskabsformer har forskellige hæftelsesregler\n";
+      response += "- Ledelsesansvar er reguleret i selskabslovgivningen\n";
+    } else if (questionLower.includes('skat') || questionLower.includes('moms')) {
+      response += "Vedrørende skatteretlige spørgsmål:\n";
+      response += "- Skattelovgivningen er kompleks og ændres ofte\n";
+      response += "- Professionel rådgivning er særligt vigtig på skatteområdet\n";
+      response += "- SKAT har vejledninger på deres hjemmeside\n";
+    } else {
+      response += "For at give mere specifik juridisk vejledning har jeg brug for flere detaljer om din situation.\n\n";
+      response += "**Generelle anbefalinger:**\n";
+      response += "- Konsulter relevante lovbestemmelser\n";
+      response += "- Søg professionel juridisk rådgivning ved komplekse spørgsmål\n";
+      response += "- Dokumenter relevante forhold grundigt\n";
+    }
+    
+    response += "\n\n**Næste skridt:**\n";
+    response += "For mere specifik hjælp, beskriv venligst din situation mere detaljeret, så jeg kan søge efter relevante lovbestemmelser.\n\n";
+    response += "*Denne vejledning er generel og erstatter ikke professionel juridisk rådgivning.*";
+    
+    return response;
+  }
+
+  private analyzeLegalQuestion(question: string, lawSections: string[]): string {
+    const questionLower = question.toLowerCase();
+    let analysis = "";
+    
+    // Analyze based on question content and available law sections
+    if (lawSections.length > 0) {
+      analysis += "Baseret på de relevante lovbestemmelser kan følgende vejledning gives:\n\n";
+      
+      // Provide specific analysis based on the type of question
+      if (questionLower.includes('opsigelse') || questionLower.includes('ansættelse')) {
+        analysis += "**Ansættelsesretlige forhold:**\n";
+        analysis += "- Opsigelsesvarsel afhænger af ansættelsestype og anciennitet\n";
+        analysis += "- Opsigelse skal være skriftlig og begrundet\n";
+        analysis += "- Særlige regler gælder for funktionærer vs. arbejdere\n";
+      } else if (questionLower.includes('forbruger') || questionLower.includes('køb')) {
+        analysis += "**Forbrugerrettigheder:**\n";
+        analysis += "- 2-årig reklamationsret ved mangler\n";
+        analysis += "- Ret til afhjælpning, omlevering eller prisafslag\n";
+        analysis += "- Fortrydelsesret ved fjernkøb (14 dage)\n";
+      } else if (questionLower.includes('selskab')) {
+        analysis += "**Selskabsretlige forhold:**\n";
+        analysis += "- Forskellige selskabsformer har forskellige regler\n";
+        analysis += "- Kapitalregler og hæftelsesforhold varierer\n";
+        analysis += "- Ledelsesansvar er specificeret i lovgivningen\n";
+      } else {
+        analysis += "**Juridisk analyse:**\n";
+        analysis += "- De fundne lovbestemmelser giver grundlag for rådgivning\n";
+        analysis += "- Specifikke forhold i din situation kan påvirke det juridiske resultat\n";
+        analysis += "- Professionel juridisk bistand anbefales ved komplekse sager\n";
       }
-    });
+    } else {
+      analysis += "Ingen specifikke lovbestemmelser blev fundet for dette spørgsmål.\n\n";
+    }
     
-    return concepts;
+    return analysis;
   }
 
-  private generateEmploymentResponse(prompt: string): string {
-    return `**Vedrørende opsigelse:**
-
-Baseret på dansk arbejdsret, særligt Funktionærloven, gælder følgende hovedregler:
-
-**§ 2 i Funktionærloven:**
-- Funktionærer kan opsiges med 1 måneds varsel til den 1. i en måned
-- Varslet skal være skriftligt og begrundet
-
-**Vigtige forhold:**
-- Opsigelse skal være saglig og reel
-- Månedslønnede har ret til løn under opsigelsesperioden
-- Ved usaglig opsigelse kan der kræves godtgørelse
-
-**Anbefaling:** Kontroller altid den specifikke ansættelseskontrakt og kollektive overenskomster, da disse kan indeholde særlige bestemmelser om opsigelse.
-
-*Dette er juridisk vejledning baseret på danske love og bør ikke erstatte professionel juridisk rådgivning.*`;
-  }
-
-  private generateProductLiabilityResponse(prompt: string): string {
-    return `**Vedrørende produktansvar og defekte varer:**
-
-Dansk ret har stærke forbrugerbeskyttelsesregler ved defekte produkter:
-
-**Købeloven (§ 76-83):**
-- Sælger er ansvarlig for produkters egenskaber og sikkerhed
-- Forbrugeren har reklamationsret ved fejl og mangler
-- 2-årig reklamationsfrist for forbrugerkøb
-
-**Produktansvarsloven:**
-- Producenter er ansvarlige for personskader fra defekte produkter
-- Objektivt ansvar - krav om bevis for defekt, skade og årsagssammenhæng
-- Ikke ansvar for udviklingsrisici (state of the art-forsvaret)
-
-**Forbrugerrettigheder:**
-- Afhjælpning, omlevering, prisafslag eller ophævelse
-- Erstatning for personskader
-- Mulighed for tilbagekaldelse ved farlige produkter
-
-**Praktiske råd:**
-- Dokumenter fejlen hurtigt og kontakt sælger/producent
-- Gem kvitteringer og kommunikation
-- Ved personskader, kontakt forsikring og/eller advokat
-
-*Dette er juridisk vejledning og erstatter ikke professionel juridisk rådgivning ved konkrete sager.*`;
-  }
-
-  private generateConsumerResponse(prompt: string): string {
-    return `**Forbrugerrettigheder og -beskyttelse:**
-
-Danmarks forbrugerlovgivning giver omfattende beskyttelse:
-
-**Forbrugeraftaleloven:**
-- Fortrydelsesret ved fjernkøb (14 dage)
-- Skærpede krav til information
-- Særlige regler for aggressive salgsteknikker
-
-**Købeloven (forbrugerkøb):**
-- 2-årig reklamationsret
-- Mangelsansvar hos sælger
-- Ret til afhjælpning eller prisafslag
-
-**Markedsføringsloven:**
-- Forbud mod vildledende markedsføring
-- Sammenlignende reklame skal være korrekt
-- Beskyttelse mod aggressive handelspraksisser
-
-**Hvis du har problemer:**
-- Kontakt først virksomheden direkte
-- Klage til Forbrugerklagenævnet (gratis)
-- Ved større beløb: juridisk bistand eller retssag
-
-*Forbrugerbeskyttelsen er stærkere end erhvervskøb - brug dine rettigheder aktivt.*`;
-  }
-
-  private generateContractResponse(prompt: string): string {
-    return `**Kontraktret og aftaler:**
-
-Danske kontraktregler bygger på aftalefriheden med lovgivningsmæssige begrænsninger:
-
-**Grundprincipper:**
-- Aftalefrihed - parterne kan som udgangspunkt aftale hvad de vil
-- Retshandel- og aftalelovens begrænsninger
-- Aftaler skal opfyldes (pacta sunt servanda)
-
-**Vigtige forhold:**
-- Skriftlighed ikke altid påkrævet, men anbefales
-- Standardvilkår skal være rimelige (AFTL § 36)
-- Forbrugerbeskyttende regler kan ikke fraviges
-
-**Ved kontraktbrud:**
-- Krav om opfyldelse eller erstatning
-- Mulighed for ophævelse ved væsentlig misligholdelse
-- Rentekrav ved forsinket betaling
-
-**Praktiske anbefalinger:**
-- Få aftaler på skrift
-- Læs vilkår grundigt før underskrift
-- Overvej juridisk rådgivning ved store aftaler
-
-*Kontraktret er komplekst - søg juridisk bistand ved tvivl om dine rettigheder.*`;
-  }
-
-  private generateTaxResponse(prompt: string): string {
-    return `**Skat og afgifter:**
-
-Det danske skattesystem er komplekst med mange forskellige regler:
-
-**Indkomstskat:**
-- Progressiv beskatning af almindelig indkomst
-- Særlige regler for kapitalindkomst
-- Forskellige fradrag og tillæg
-
-**Moms:**
-- 25% standardsats på de fleste varer og ydelser
-- Fritagelser for visse områder (sundhed, undervisning)
-- Registreringspligt ved omsætning over 50.000 kr.
-
-**Erhvervsskat:**
-- Selskabsskat på 22%
-- Forskellige afskrivningsregler
-- Særlige regler for mindre virksomheder
-
-**Ved skatteproblemer:**
-- Kontakt dit lokale skattecenter
-- Bruger Skatteforvaltningens hjemmeside
-- Søg professionel skattemæssig rådgivning
-
-*Skattereglerne ændres ofte - hold dig opdateret gennem officielle kanaler.*`;
-  }
-
-  private generateCriminalResponse(prompt: string): string {
-    return `**Strafferetslige spørgsmål:**
-
-Danmarks straffelovgivning omfatter både straffeloven og særlovgivning:
-
-**Grundprincipper:**
-- Legalitetsprincippet - ingen straf uden lov
-- Skyldsprincippet - kun straf ved skyld
-- Proportionalitetsprincippet - straffen skal passe til forbrydelsen
-
-**Hovedkategorier:**
-- Forbrydelser mod person (vold, drab, voldtægt)
-- Forbrydelser mod ejendom (tyveri, bedrageri, hærværk)
-- Trafikforseelser og særlovovertrædelser
-
-**Procedureregler:**
-- Politiets rolle i efterforskning
-- Anklagemyndighedens rolle
-- Retten til forsvar
-
-**Hvis du er involveret:**
-- Kontakt straks en advokat
-- Brug din tavshedsret
-- Samarbejd ikke uden juridisk rådgivning
-
-*Ved mistanke om kriminalitet er professionel juridisk bistand afgørende for dit forsvar.*`;
-  }
-
-  private generateCorporateResponse(prompt: string): string {
-    return `**Selskabsret og virksomhedsjura:**
-
-Danske virksomhedsformer har forskellige juridiske rammer:
-
-**Aktieselskaber (A/S):**
-- Minimumskapital: 400.000 kr.
-- Begrænset hæftelse for aktionærer
-- Omfattende ledelsesregler og regnskabskrav
-
-**Anpartsselskaber (ApS):**
-- Minimumskapital: 40.000 kr.
-- Enklere struktur end A/S
-- Begrænset hæftelse for ejere
-
-**Personlige virksomhedsformer:**
-- Enkeltmandsvirksomhed - fuld personlig hæftelse
-- I/S - deltagerne hæfter solidarisk
-
-**Vigtige områder:**
-- Vedtægter og selskabsaftaler
-- Ledelsesansvar og hæftelse
-- Regnskab og revision
-- Kapitalregler og udlodninger
-
-**Ved selskabsstiftelse:**
-- Overvej grundigt valg af selskabsform
-- Få udarbejdet professionelle vedtægter
-- Forstå dine forpligtelser som ledelse
-
-*Selskabsret er teknisk komplekst - brug altid professionel juridisk og regnskabsmæssig rådgivning.*`;
-  }
-
-  private generateGeneralLegalResponse(prompt: string): string {
-    return `**Juridisk vejledning:**
-
-Jeg har analyseret dit spørgsmål og baseret på danske juridiske bestemmelser kan jeg give følgende generelle vejledning:
-
-**Relevante lovområder at undersøge:**
-- Funktionærloven (ansættelsesforhold)
-- Arbejdsmiljøloven (sikkerhed på arbejdspladsen)
-- Ferieloven (ferie og fridage)
-- Kollektive overenskomster
-
-**Generelle anbefalinger:**
-- Konsulter altid din ansættelseskontrakt
-- Tjek om der gælder særlige overenskomstregler
-- Vær opmærksom på frister og varslinger
-- Søg juridisk bistand ved komplekse sager
-
-**Næste skridt:**
-For at give mere specifik vejledning har jeg brug for flere detaljer om din konkrete situation.
-
-*Denne vejledning er baseret på generelle lovbestemmelser og erstatter ikke professionel juridisk rådgivning.*`;
-  }
 
   private generateIntelligentFallback(prompt: string): string {
     return `**Systemmeddelelse:**

@@ -109,7 +109,7 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(legalDomains, eq(lawTexts.domainId, legalDomains.id));
 
     if (domainIds && domainIds.length > 0) {
-      return await query.where(sql`${lawTexts.domainId} = ANY(${domainIds})`);
+      return await query.where(inArray(lawTexts.domainId, domainIds));
     }
 
     return await query;
