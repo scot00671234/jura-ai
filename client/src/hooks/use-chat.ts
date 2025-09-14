@@ -41,11 +41,12 @@ export function useChat(sessionId?: string) {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ message, domainIds }: { message: string; domainIds?: string[] }) => {
-      if (!currentSessionId) {
+    mutationFn: async ({ message, domainIds, sessionId }: { message: string; domainIds?: string[]; sessionId?: string }) => {
+      const sessionIdToUse = sessionId || currentSessionId;
+      if (!sessionIdToUse) {
         throw new Error("No active session");
       }
-      const response = await apiRequest("POST", `/api/chat-sessions/${currentSessionId}/messages`, {
+      const response = await apiRequest("POST", `/api/chat-sessions/${sessionIdToUse}/messages`, {
         message,
         domainIds,
       });
@@ -97,18 +98,23 @@ export function useChat(sessionId?: string) {
   };
 
   const sendMessage = async (message: string, domainIds?: string[]) => {
-    if (!currentSessionId) {
+    let sessionIdToUse = currentSessionId;
+    
+    if (!sessionIdToUse) {
       // Create new session if none exists
       const newSession = await createSessionMutation.mutateAsync({
         title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
         selectedDomains: domainIds || [],
       });
-      
-      // Send message to new session
-      await sendMessageMutation.mutateAsync({ message, domainIds });
-    } else {
-      await sendMessageMutation.mutateAsync({ message, domainIds });
+      sessionIdToUse = newSession.id;
     }
+    
+    // Send message using the session ID
+    await sendMessageMutation.mutateAsync({ 
+      message, 
+      domainIds,
+      sessionId: sessionIdToUse 
+    });
   };
 
   const regenerateMessage = async (messageId: string, domainIds?: string[]) => {

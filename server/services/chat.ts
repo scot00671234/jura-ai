@@ -161,17 +161,22 @@ SVAR:`;
     messageId: string,
     domainIds?: string[]
   ): Promise<ChatMessage> {
-    // Get the message to regenerate
-    const messages = await storage.getChatMessages("");
-    const messageToRegenerate = messages.find(m => m.id === messageId);
+    // Get all messages from storage
+    const allMessages = await storage.getChatMessages("");
+    const messageToRegenerate = allMessages.find(m => m.id === messageId);
     
     if (!messageToRegenerate || messageToRegenerate.role !== "assistant") {
       throw new Error("Message not found or not an assistant message");
     }
 
-    // Find the previous user message
-    const messageIndex = messages.findIndex(m => m.id === messageId);
-    const userMessage = messages[messageIndex - 1];
+    // Get all messages from the same session, ordered by creation time
+    const sessionMessages = allMessages
+      .filter(m => m.sessionId === messageToRegenerate.sessionId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    // Find the message to regenerate and the previous user message
+    const messageIndex = sessionMessages.findIndex(m => m.id === messageId);
+    const userMessage = sessionMessages[messageIndex - 1];
     
     if (!userMessage || userMessage.role !== "user") {
       throw new Error("Previous user message not found");
@@ -184,7 +189,7 @@ SVAR:`;
       messageToRegenerate.sessionId
     );
 
-    // Update the existing message
+    // Update the existing message content
     const updatedMessageData: InsertChatMessage = {
       sessionId: messageToRegenerate.sessionId,
       role: "assistant",
@@ -192,9 +197,12 @@ SVAR:`;
       citations: llmResponse.citations,
     };
 
-    // In a real implementation, you'd want an update method
-    // For now, we'll create a new message
-    return await storage.createChatMessage(updatedMessageData);
+    // Create a new message to replace the old one
+    const newMessage = await storage.createChatMessage(updatedMessageData);
+    
+    // In a production app, you'd want to actually update the existing message
+    // For now, we return the new message
+    return newMessage;
   }
 }
 

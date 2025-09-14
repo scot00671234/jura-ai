@@ -26,12 +26,20 @@ export default function ChatInterface({ sessionId }: ChatInterfaceProps) {
     regenerateMessage,
   } = useChat(sessionId);
 
+  // Create a new session if none exists and user tries to send a message
+  const handleSendMessageWithSession = async (message: string) => {
+    if (!sessionId && !currentSession) {
+      await createNewSession();
+    }
+    await sendMessage(message, selectedDomains);
+  };
+
   const { data: legalDomains = [] } = useQuery({
     queryKey: ["/api/legal-domains"],
   });
 
   const handleSendMessage = async (message: string) => {
-    await sendMessage(message, selectedDomains);
+    await handleSendMessageWithSession(message);
   };
 
   const handleNewChat = async () => {
@@ -39,7 +47,7 @@ export default function ChatInterface({ sessionId }: ChatInterfaceProps) {
   };
 
   const handleUseSuggestion = (suggestion: string) => {
-    handleSendMessage(suggestion);
+    handleSendMessageWithSession(suggestion);
   };
 
   const handleCitationClick = (citation: any) => {
